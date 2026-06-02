@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #080A10;
+    --surface: #10131D;
+    --surface-elevated: #151A27;
+    --foreground: #F8FAFC;
+
+    --card: #10131D;
+    --card-foreground: #F8FAFC;
+
+    --popover: #151A27;
+    --popover-foreground: #F8FAFC;
+
+    --primary: #6366F1;
+    --primary-foreground: #FFFFFF;
+    --primary-hover: #4F46E5;
+
+    --secondary: #151A27;
+    --secondary-foreground: #CBD5E1;
+
+    --muted: #10131D;
+    --muted-foreground: #8491A8;
+
+    --accent: #1A1A24;
+    --accent-foreground: #F8FAFC;
+
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+    
+    --success: #10B981;
+    --warning: #F59E0B;
+    --processing: #6366F1;
+
+    --border: #1E2433;
+    --input: #1E2433;
+    --ring: #6366F1;
+
+    --radius: 0.5rem;
+
+    /* Semantic Table Colors */
+    --table-null-cell: #1F1010;
+    --table-failed-row: #1A0F0F;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 70%),
+      linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-attachment: fixed;
+  }
+}
+
+@layer utilities {
+  .panel {
+    background: linear-gradient(180deg, var(--surface-elevated), var(--surface));
+    border: 1px solid var(--border);
+  }
+
+  .glow-border {
+    position: relative;
+  }
+  .glow-border::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(to bottom right, var(--primary), transparent);
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0.5;
+  }
+
+  .shimmer {
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+    background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  }
+  
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: var(--background);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+}

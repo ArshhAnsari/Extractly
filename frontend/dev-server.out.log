@@ -1,0 +1,26 @@
+
+> frontend@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.22
+  - Local:        http://localhost:3001
+
+ ✓ Starting...
+ ✓ Ready in 19s
+ ○ Compiling / ...
+ ✓ Compiled / in 46.5s (2371 modules)
+ ✓ Compiled in 18.5s (1125 modules)
+ ✓ Compiled in 1283ms (1111 modules)
+ GET / 200 in 851ms
+ GET / 200 in 2817ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 31.2s (2347 modules)
+ GET /_next/static/css/app/layout.css?v=1778500245738 404 in 33100ms
+ GET /_next/static/chunks/webpack.js?v=1778500245738 404 in 33084ms
+ GET /_next/static/chunks/main-app.js?v=1778500245738 404 in 33080ms
+ GET /_next/static/chunks/app/layout.js 404 in 33112ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 33113ms
+ GET /_next/static/chunks/app/page.js 404 in 33122ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 2.6s (1251 modules)
+ GET /favicon.ico 200 in 3235ms

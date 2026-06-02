@@ -1,0 +1,59 @@
+# ──────────────────────────────────────────────
+# CV Extractor SaaS — Python Dependencies
+# ──────────────────────────────────────────────
+
+# Django & DRF
+Django==5.1.7
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.4.0
+django-cors-headers==4.6.0
+
+# Database
+psycopg2-binary==2.9.10
+
+# Async task queue
+celery==5.4.0
+redis==5.2.1
+
+# Environment variables
+python-dotenv==1.0.1
+
+# Cloudinary SDK (for signing upload params)
+cloudinary==1.41.0
+
+# PDF parsing
+pdfplumber==0.11.4
+
+# DOCX parsing
+python-docx==1.1.2
+
+# Google Vision OCR
+google-cloud-vision==3.8.1
+
+# LLM clients
+openai==1.61.0
+google-generativeai==0.8.4
+
+# Structured output validation
+pydantic==2.10.5
+
+# Excel export
+openpyxl==3.1.5
+
+# Cryptography & Google API integration
+cryptography==44.0.0
+google-auth==2.38.0
+google-auth-oauthlib==1.2.1
+google-api-python-client==2.159.0
+
+
+# HTTP requests (downloading files from Cloudinary URLs)
+requests==2.32.3
+
+# Retry/backoff for transient provider failures
+tenacity==9.0.0
+
+# Production WSGI server
+gunicorn==23.0.0
+
+whitenoise==6.8.2

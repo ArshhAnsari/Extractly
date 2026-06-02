@@ -1,0 +1,15 @@
+{
+  "venvPath": "cvextractor",
+  "venv": "venv",
+  "pythonVersion": "3.13",
+  "include": [
+    "cvextractor"
+  ],
+  "extraPaths": [
+    "cvextractor"
+  ],
+  "exclude": [
+    "cvextractor/venv",
+    "**/__pycache__"
+  ]
+}
