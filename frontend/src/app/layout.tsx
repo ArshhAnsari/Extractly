@@ -25,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CV Extractor | AI-Powered Parsing",
+  title: "Extractly | AI-Powered CV Extraction Platform",
   description: "Extract structured data from CVs at scale.",
 };
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { buttonVariants } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -32,8 +33,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="sticky top-0 z-40 border-b border-border bg-surface/80 backdrop-blur-md">
           <div className="flex items-center justify-between px-6 h-16">
             <div className="flex items-center space-x-8">
-              <Link href="/dashboard" className="font-heading font-bold text-xl text-primary">
-                CV Extractor
+              <Link href="/dashboard" className="flex items-center">
+                <Image 
+                  src="/Extractly_logo.png" 
+                  alt="Extractly Logo" 
+                  width={250} 
+                  height={80} 
+                  className="w-40 sm:w-48 h-auto object-contain mix-blend-screen"
+                  priority
+                />
               </Link>
               <nav className="hidden md:flex items-center space-x-1">
                 <Link href="/dashboard" className="text-sm font-medium px-3 py-2 rounded-md bg-muted text-foreground">
