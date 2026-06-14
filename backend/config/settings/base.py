@@ -163,10 +163,12 @@ CLOUDINARY_WEBHOOK_SECRET = os.environ.get("CLOUDINARY_WEBHOOK_SECRET", "")
 # ──────────────────────────────────────────────
 # LLM Provider
 # ──────────────────────────────────────────────
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")  # "openai" or "gemini"
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq") 
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")      
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
 # ──────────────────────────────────────────────
 # Google Vision (OCR for images)
 # ──────────────────────────────────────────────

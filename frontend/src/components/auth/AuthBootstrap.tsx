@@ -3,10 +3,11 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { authApi } from '@/lib/api/auth';
+
 let _bootstrapFired = false;
 
 export function AuthBootstrap({ children }: { children: React.ReactNode }) {
-  const { setToken, setBootstrapping } = useAuthStore();
+  const { setToken, setBootstrapping, logout } = useAuthStore();
 
   useEffect(() => {
     if (_bootstrapFired) return;
@@ -15,16 +16,20 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
     const bootstrap = async () => {
       try {
         const token = await authApi.refresh();
-        if (token) setToken(token);
+        if (token) {
+          setToken(token);
+        } else {
+          logout();
+        }
       } catch {
-        // no session
+        logout();
       } finally {
         setBootstrapping(false);
       }
     };
 
     bootstrap();
-  }, [setToken, setBootstrapping]);
+  }, [setToken, setBootstrapping, logout]);
 
   return <>{children}</>;
 }

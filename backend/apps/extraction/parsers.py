@@ -156,7 +156,7 @@ def _ocr_gemini(file_bytes: bytes) -> str:
         import google.generativeai as genai  # type: ignore
 
         genai.configure(api_key=settings.GEMINI_API_KEY)  # type: ignore
-        model = genai.GenerativeModel("gemini-1.5-flash-latest")  # type: ignore
+        model = genai.GenerativeModel(settings.GEMINI_MODEL)  # type: ignore
 
         image_part = {
             "mime_type": "image/jpeg",
