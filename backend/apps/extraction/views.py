@@ -6,6 +6,7 @@ POST /api/v1/jobs/{job_id}/process/ — Trigger Celery extraction chord
 
 from rest_framework import status as http_status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.exceptions import ConflictError, NotFoundError
@@ -23,6 +24,8 @@ class JobProcessView(APIView):
     Trigger point for the job's extraction pipeline.
     """
     permission_classes = [IsAuthenticated, IsOwner]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "process"
 
     def post(self, request, job_id):
         try:

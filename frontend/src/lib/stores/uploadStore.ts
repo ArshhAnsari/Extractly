@@ -40,6 +40,11 @@ const fileTypeMap: Record<string, BackendFileType> = {
 };
 
 function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const apiError = error.response?.data?.error;
+    if (apiError?.message) return apiError.message;
+    return error.message;
+  }
   if (error && typeof error === 'object' && 'error' in error) {
     const apiError = error as { error?: { message?: string } };
     if (apiError.error?.message) return apiError.error.message;
@@ -239,8 +244,6 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
           cloudinary_public_id: item.cloudinaryId as string,
           original_filename: item.file.name,
           file_type: item.fileType as BackendFileType,
-          storage_url: item.storageUrl,
-          bytes: item.bytes,
         }))
       );
 
@@ -271,10 +274,14 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
     }
   },
 
-  startProcessingJob: async (jobId: string) => {
-    const res = await jobsApi.startProcessing(jobId);
-    if (!res.success) {
-      throw new Error(res.error.message);
+   startProcessingJob: async (jobId: string) => {
+    try {
+      const res = await jobsApi.startProcessing(jobId);
+      if (!res.success) {
+        throw new Error(res.error.message);
+      }
+    } catch (error) {
+      throw new Error(getErrorMessage(error));
     }
   },
 }));

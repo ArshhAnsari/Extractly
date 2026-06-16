@@ -17,7 +17,11 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 DEBUG = False
-ALLOWED_HOSTS: list[str] = []
+ALLOWED_HOSTS: list[str] = ["localhost",
+    "127.0.0.1",
+    ".ngrok-free.dev",
+    ".ngrok-free.app",
+    ".ngrok.io",]
 
 # ──────────────────────────────────────────────
 # Application definition
@@ -125,6 +129,20 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ),
     "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/day",
+        "user": "2000/day",
+        "login": "5/minute",
+        "register": "10/hour",
+        "upload_sign": "300/hour",
+        "process": "30/hour",
+    },
+    "NUM_PROXIES": 1,
 }
 
 # ──────────────────────────────────────────────
@@ -169,6 +187,8 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-lite")
+
 # ──────────────────────────────────────────────
 # Google Vision (OCR for images)
 # ──────────────────────────────────────────────

@@ -9,9 +9,11 @@ from rest_framework import status as http_status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
+import logging
+logger = logging.getLogger(__name__)
 
 import cloudinary.utils
-
+from rest_framework.throttling import ScopedRateThrottle
 from core.exceptions import ConflictError, NotFoundError, ValidationError, InternalError
 from core.permissions import IsOwner
 from core.response import success
@@ -25,6 +27,8 @@ class UploadSignView(APIView):
     POST /api/v1/jobs/{job_id}/upload/sign/
     """
     permission_classes = [IsAuthenticated, IsOwner]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "upload_sign"
 
     def post(self, request, job_id):
         try:
@@ -56,10 +60,12 @@ class UploadSignView(APIView):
         if not api_secret:
             raise InternalError("Cloudinary is not configured.")
 
+        max_bytes = settings.MAX_FILE_SIZE_BYTES
         params_to_sign = {
             "timestamp": timestamp,
             "public_id": public_id,
             "allowed_formats": "pdf,docx,jpg,png",
+            "max_size": max_bytes,
         }
 
         signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
@@ -70,6 +76,7 @@ class UploadSignView(APIView):
             "signature": signature,
             "public_id": public_id,
             "allowed_formats": "pdf,docx,jpg,png",
+            "max_size": max_bytes,
         }
 
         upload_url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/auto/upload"
@@ -92,7 +99,7 @@ class BatchFileRegisterView(APIView):
             job = Job.objects.get(pk=job_id)
         except (Job.DoesNotExist, ValueError):
             raise NotFoundError("Resource not found.")
-            
+
         self.check_object_permissions(request, job)
 
         serializer = BatchFileRegistrationSerializer(data=request.data)
@@ -117,17 +124,6 @@ class BatchFileRegisterView(APIView):
                 )
             raise ConflictError("Files can only be registered for DRAFT jobs.")
 
-        max_size = getattr(settings, "MAX_FILE_SIZE_BYTES", 10 * 1024 * 1024)
-        oversized = [
-            fdata["original_filename"]
-            for fdata in files_data
-            if fdata.get("bytes") and fdata["bytes"] > max_size
-        ]
-        if oversized:
-            raise ValidationError(
-                f"Files exceed the maximum size of {max_size} bytes: {', '.join(oversized)}"
-            )
-
         with transaction.atomic():
             job = Job.objects.select_for_update().get(pk=job.pk)
             files_to_create = [
@@ -136,14 +132,12 @@ class BatchFileRegisterView(APIView):
                     cloudinary_public_id=fdata["cloudinary_public_id"],
                     original_filename=fdata["original_filename"],
                     file_type=fdata["file_type"],
-                    storage_url=fdata.get("storage_url") or None,
-                    bytes=fdata.get("bytes"),
-                    status=FileStatus.VERIFIED if fdata.get("storage_url") else FileStatus.PENDING,
+                    status=FileStatus.PENDING,
                 )
                 for fdata in files_data
             ]
             File.objects.bulk_create(files_to_create)
-            
+
             job.total_files = len(files_to_create)
             job.status = JobStatus.QUEUED
             job.save(update_fields=["total_files", "status"])
@@ -156,13 +150,13 @@ class BatchFileRegisterView(APIView):
             status=http_status.HTTP_201_CREATED
         )
 
-
 class CloudinaryWebhookView(APIView):
     """
     POST /api/v1/webhooks/cloudinary/
     """
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = []  # signature-verified callback, exempt from global anon throttle
 
     def post(self, request):
         body_bytes = request.body
@@ -176,23 +170,27 @@ class CloudinaryWebhookView(APIView):
         # 1. Replay protection (7200 seconds / 2 hours)
         try:
             if int(time.time()) - int(timestamp) > 7200:
-                import logging
-                logging.getLogger(__name__).warning("Webhook timestamp expired.")
+                logger.warning("Webhook timestamp expired.")
                 return Response({"received": False}, status=http_status.HTTP_400_BAD_REQUEST)
         except ValueError:
             return Response({"received": False}, status=http_status.HTTP_400_BAD_REQUEST)
 
         # 2. Verify Signature
-        body_str = body_bytes.decode("utf-8")
-        params_str = f"notification_body={body_str}&timestamp={timestamp}"
-        to_sign = params_str + secret
-        expected_sig = hashlib.sha1(to_sign.encode("utf-8")).hexdigest()
-
-        if not hmac.compare_digest(expected_sig, signature):
-            import logging
-            logging.getLogger(__name__).error("Webhook signature mismatch.")
+        try:
+            body_str = body_bytes.decode("utf-8")
+        except UnicodeDecodeError:
             return Response({"received": False}, status=http_status.HTTP_400_BAD_REQUEST)
+        
+        payload_str = body_str + timestamp + secret
+        
+        # Cloudinary can send either SHA1 or SHA256 depending on account settings
+        expected_sig_sha1 = hashlib.sha1(payload_str.encode("utf-8")).hexdigest()
+        expected_sig_sha256 = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
 
+        if not hmac.compare_digest(expected_sig_sha1, signature) and not hmac.compare_digest(expected_sig_sha256, signature):
+            logger.error("Webhook signature mismatch.")
+            return Response({"received": False}, status=http_status.HTTP_400_BAD_REQUEST)
+        
         # 3. Process Payload
         public_id: str | None = None  
         try:
@@ -220,9 +218,6 @@ class CloudinaryWebhookView(APIView):
         except json.JSONDecodeError:
             pass
         except File.DoesNotExist:
-            import logging
-            logging.getLogger(__name__).warning(
-                "Webhook received for unknown public_id: %s", public_id
-            )
+            logger.warning("Webhook received for unknown public_id: %s", public_id)
 
         return Response({"received": True}, status=http_status.HTTP_200_OK)

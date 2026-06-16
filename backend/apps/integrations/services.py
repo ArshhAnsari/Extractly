@@ -6,6 +6,7 @@ from google.oauth2.credentials import Credentials
 from datetime import timedelta
 from django.utils import timezone
 from core.exceptions import ForbiddenError
+from core.sanitize import sanitize_cell_value
 from .models import GoogleOAuthToken
 from .encryption import decrypt_token, encrypt_token
 
@@ -32,17 +33,28 @@ def get_valid_credentials(user):
             raise GoogleNotConnectedError("Refresh token is missing. Please reconnect Google account.")
 
         token_url = "https://oauth2.googleapis.com/token"
+        token_url = "https://oauth2.googleapis.com/token"
         token_data = {
             "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
             "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
             "refresh_token": refresh_token,
             "grant_type": "refresh_token",
         }
-        res = requests.post(token_url, data=token_data)
-        if res.status_code != 200:
-            # If refresh fails, disconnect and raise exception
+        try:
+            res = requests.post(token_url, data=token_data, timeout=10)
+        except requests.RequestException as exc:
+            raise GoogleNotConnectedError(
+                "Could not reach Google to refresh the connection. Try again shortly."
+            ) from exc
+
+        if res.status_code == 400:
+            # invalid_grant: refresh token itself is revoked/expired
             token.delete()
-            raise GoogleNotConnectedError("Google refresh token expired. Please connect again.")
+            raise GoogleNotConnectedError("Google connection expired. Please reconnect.")
+
+        if res.status_code != 200:
+            # Transient (5xx/429/etc.) — do not disconnect, let the user retry
+            raise GoogleNotConnectedError("Google is temporarily unavailable. Try again shortly.")
 
         res_data = res.json()
         new_access = res_data.get("access_token")
@@ -87,14 +99,15 @@ def write_to_sheets(user, headers, rows, sheet_title) -> dict:
 
     # 2. Prepare value write
     def _sanitize(row: list) -> list:
-        return [
+        cleaned = [
             "" if v is None
-            else ", ".join(v) if isinstance(v, list)
+            else ", ".join(str(x) for x in v if x is not None) if isinstance(v, list)
             else v
             for v in row
         ]
+        return [sanitize_cell_value(v) for v in cleaned]
 
-    values = [headers] + [_sanitize(row) for row in rows]
+    values = [[sanitize_cell_value(h) for h in headers]] + [_sanitize(row) for row in rows]
     body = {"values": values}
     
     # Write to Sheet1!A1

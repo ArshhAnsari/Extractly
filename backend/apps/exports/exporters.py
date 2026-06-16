@@ -7,29 +7,25 @@ import csv
 import io
 import openpyxl
 from apps.files.models import ExtractedRow
+from core.sanitize import sanitize_cell_value
 
 
 def _get_headers_and_rows(job):
-    """
-    Dynamically maps the static headers (Filename, Status) with the
-    snapshot definition to produce accurate column ordering and labels.
-    """
     fields = job.fields_snapshot
-    
+
     headers = ["Original Filename", "Extraction Status"]
     for f in fields:
-        headers.append(f.get("label", f.get("key")))
-        
-    # Optimizing query using select_related immediately
+        headers.append(sanitize_cell_value(f.get("label", f.get("key"))))
+
     extracted_rows = ExtractedRow.objects.filter(job=job).select_related('file').order_by('created_at')
-    
+
     data_matrix = []
     for row in extracted_rows:
         line = [
-            row.file.original_filename,
+            sanitize_cell_value(row.file.original_filename),
             row.extraction_status,
         ]
-        
+
         row_data = row.data or {}
         for f in fields:
             val = row_data.get(f["key"])
@@ -37,12 +33,13 @@ def _get_headers_and_rows(job):
                 val = ", ".join(str(v) for v in val if v is not None)
             elif val is not None and f.get("type") == "string":
                 val = str(val)  # prevents Excel scientific notation for phone/numeric strings
-            line.append(val if val is not None else "")
-            
-        data_matrix.append(line)
-        
-    return headers, data_matrix
+            if val is None:
+                val = ""
+            line.append(sanitize_cell_value(val))
 
+        data_matrix.append(line)
+
+    return headers, data_matrix
 
 def generate_csv(job) -> bytes:
     """Generates proper UTF-8 encoded CSV byte payload."""
@@ -78,19 +75,8 @@ def generate_excel(job) -> bytes:
 # ──────────────────────────────────────────────
 
 def _get_merged_headers_and_rows(jobs):
-    """
-    Build a unified header set and row matrix across multiple jobs.
-
-    Strategy:
-    - Prepend "Job Name" + "Original Filename" + "Extraction Status"
-    - Build a UNION of all field keys across every job's fields_snapshot
-      (preserves insertion order from the first job that defines each key).
-    - For each row, fill values for keys present in its job; leave blank
-      for keys defined only in other jobs.
-    """
-    # Build ordered union of field keys with their best label
-    seen_keys = {}        # key → label (first-seen wins)
-    ordered_keys = []     # preserves insertion order
+    seen_keys = {}
+    ordered_keys = []
 
     for job in jobs:
         for f in job.fields_snapshot:
@@ -100,7 +86,7 @@ def _get_merged_headers_and_rows(jobs):
                 ordered_keys.append(key)
 
     headers = ["Job Name", "Original Filename", "Extraction Status"]
-    headers += [seen_keys[k] for k in ordered_keys]
+    headers += [sanitize_cell_value(seen_keys[k]) for k in ordered_keys]
 
     data_matrix = []
     for job in jobs:
@@ -112,8 +98,8 @@ def _get_merged_headers_and_rows(jobs):
         )
         for row in rows:
             line = [
-                job.name,
-                row.file.original_filename,
+                sanitize_cell_value(job.name),
+                sanitize_cell_value(row.file.original_filename),
                 row.extraction_status,
             ]
             row_data = row.data or {}
@@ -121,11 +107,12 @@ def _get_merged_headers_and_rows(jobs):
                 val = row_data.get(key)
                 if isinstance(val, list):
                     val = ", ".join(str(v) for v in val if v is not None)
-                line.append(val if val is not None else "")
+                if val is None:
+                    val = ""
+                line.append(sanitize_cell_value(val))
             data_matrix.append(line)
 
     return headers, data_matrix
-
 
 def generate_merged_csv(jobs) -> bytes:
     """Generates a merged UTF-8 CSV across multiple jobs."""

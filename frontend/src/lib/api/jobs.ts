@@ -13,8 +13,6 @@ interface RegisterFileInput {
   cloudinary_public_id: string;
   original_filename: string;
   file_type: 'PDF' | 'DOCX' | 'IMAGE';
-  storage_url?: string;
-  bytes?: number;
 }
 
 interface JobStatusPayload {

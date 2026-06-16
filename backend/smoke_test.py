@@ -9,19 +9,29 @@ Usage        : python smoke_test.py
 Prerequisite : Django + Celery + Redis running, Cloudinary + LLM keys configured.
 """
 
+import hashlib
 import io
 import json
+import os
 import time
 import uuid
 import sys
 import requests
 from typing import NoReturn
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 
 BASE_URL      = "http://localhost:8000/api/v1"
 POLL_INTERVAL = 5    # seconds between status polls
 POLL_TIMEOUT  = 300  # seconds before giving up on a job
+
+CLOUDINARY_WEBHOOK_SECRET = os.environ.get("CLOUDINARY_WEBHOOK_SECRET", "")
+if not CLOUDINARY_WEBHOOK_SECRET:
+    print("  ✗  CLOUDINARY_WEBHOOK_SECRET not set in environment/.env")
+    sys.exit(1)
 
 # ── SHARED STATE ──────────────────────────────────────────────────────────────
 
@@ -206,17 +216,41 @@ def upload_file_pipeline(job_id, filename, pdf_bytes):
     return public_id, cld_data["secure_url"], cld_data["bytes"]
 
 
+def verify_webhook(public_id, secure_url, byte_count, file_format="pdf"):
+    """Simulate Cloudinary's signed callback to /webhooks/cloudinary/."""
+    payload = {
+        "public_id": public_id,
+        "secure_url": secure_url,
+        "format": file_format,
+        "bytes": byte_count,
+        "notification_type": "upload",
+    }
+    body_str = json.dumps(payload, separators=(",", ":"))
+    timestamp = str(int(time.time()))
+
+    to_sign = body_str + timestamp + CLOUDINARY_WEBHOOK_SECRET
+    signature = hashlib.sha1(to_sign.encode("utf-8")).hexdigest()
+
+    return requests.post(
+        f"{BASE_URL}/webhooks/cloudinary/",
+        data=body_str.encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Cld-Signature": signature,
+            "X-Cld-Timestamp": timestamp,
+        },
+    )
+
+
 def register_and_process(job_id, public_id, secure_url, byte_count, filename):
-    """Register files with Django and trigger processing. Aborts on failure."""
-    # Register
+    """Register files, verify via webhook, and trigger processing. Aborts on failure."""
+    # Register — always lands as PENDING now
     res = requests.post(
         f"{BASE_URL}/jobs/{job_id}/files/",
         json={"files": [{
             "cloudinary_public_id": public_id,
             "original_filename":    filename,
             "file_type":            "PDF",
-            "storage_url":          secure_url,
-            "bytes":                byte_count,
         }]},
         headers=auth_headers(),
     )
@@ -234,6 +268,13 @@ def register_and_process(job_id, public_id, secure_url, byte_count, filename):
             data.get("error", {}).get("message", res.text),
         )
 
+    # Webhook verify — PENDING -> VERIFIED
+    wh_res = verify_webhook(public_id, secure_url, byte_count, "pdf")
+    if wh_res.status_code == 200:
+        ok("Webhook verify → file marked VERIFIED")
+    else:
+        abort("Webhook verify", f"HTTP {wh_res.status_code}: {wh_res.text[:200]}")
+
     # Process trigger
     res = requests.post(f"{BASE_URL}/jobs/{job_id}/process/", headers=auth_headers())
     data = res.json()
@@ -244,7 +285,6 @@ def register_and_process(job_id, public_id, secure_url, byte_count, filename):
             "Trigger processing",
             data.get("error", {}).get("message", res.text),
         )
-
 
 def poll_job(job_id, label="job"):
     """Poll /status/ every POLL_INTERVAL seconds. Returns final status string."""
