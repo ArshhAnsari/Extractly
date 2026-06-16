@@ -54,18 +54,15 @@ class UploadSignView(APIView):
 
         timestamp = int(time.time())
         public_id = f"cvextractor/{request.user.id}/{job.id}/{uuid.uuid4()}"
-        folder = f"cvextractor/{request.user.id}/{job.id}"
 
         api_secret = settings.CLOUDINARY_API_SECRET
         if not api_secret:
             raise InternalError("Cloudinary is not configured.")
 
-        max_bytes = settings.MAX_FILE_SIZE_BYTES
         params_to_sign = {
             "timestamp": timestamp,
             "public_id": public_id,
             "allowed_formats": "pdf,docx,jpg,png",
-            "max_size": max_bytes,
         }
 
         signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
@@ -76,7 +73,6 @@ class UploadSignView(APIView):
             "signature": signature,
             "public_id": public_id,
             "allowed_formats": "pdf,docx,jpg,png",
-            "max_size": max_bytes,
         }
 
         upload_url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/auto/upload"
