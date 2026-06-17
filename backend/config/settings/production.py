@@ -13,6 +13,9 @@ DEBUG = False
 _allowed_hosts = os.environ.get("ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [h for h in _allowed_hosts.split(",") if h.strip()]
 
+if "RENDER_EXTERNAL_HOSTNAME" in os.environ:
+    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
+
 # ──────────────────────────────────────────────
 # CORS — restricted in production
 # ──────────────────────────────────────────────
@@ -52,3 +55,13 @@ if _gcp_creds_b64:
     _tmpfile.write(_creds_json)
     _tmpfile.close()
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _tmpfile.name
+
+# ──────────────────────────────────────────────
+# Celery — Allow Upstash rediss:// connections
+# ──────────────────────────────────────────────
+CELERY_BROKER_USE_SSL = {
+    'ssl_cert_reqs': 'CERT_NONE'
+}
+CELERY_REDIS_BACKEND_USE_SSL = {
+    'ssl_cert_reqs': 'CERT_NONE'
+}
