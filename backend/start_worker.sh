@@ -26,9 +26,8 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
 
 port = int(os.environ.get('PORT', 8001))
 server = http.server.HTTPServer(('0.0.0.0', port), HealthHandler)
-thread = threading.Thread(target=server.serve_forever, daemon=True)
-thread.start()
 print(f'Health server listening on port {port}', flush=True)
+server.serve_forever()
 " &
 
 # Start the Celery worker in the foreground.

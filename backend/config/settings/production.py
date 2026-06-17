@@ -67,3 +67,6 @@ CELERY_BROKER_USE_SSL = {
 CELERY_REDIS_BACKEND_USE_SSL = {
     'ssl_cert_reqs': ssl.CERT_NONE
 }
+
+# Auto-wake ping URL (set this in Render Env Group)
+WORKER_URL = os.environ.get("WORKER_URL", "https://cvextractor-worker.onrender.com/")

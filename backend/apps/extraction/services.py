@@ -2,6 +2,8 @@
 Shared orchestration helpers for the extraction pipeline.
 """
 import logging
+import threading
+import urllib.request
 
 from celery import chord
 from kombu.exceptions import OperationalError as KombuOperationalError
@@ -21,7 +23,19 @@ class ProcessingDispatchError(Exception):
     """Raised when a job cannot be dispatched for extraction."""
 
 
+def _ping_worker():
+    """Silently ping the worker's HTTP port to wake it up from Render sleep."""
+    worker_url = getattr(settings, "WORKER_URL", "https://cvextractor-worker.onrender.com/")
+    try:
+        urllib.request.urlopen(worker_url, timeout=5)
+    except Exception as e:
+        logger.debug("Worker ping background task finished (or timed out, which is expected during wake): %s", e)
+
+
 def _dispatch_chord(job_id: str, file_id_batches: list[list[str]]) -> None:
+    # Fire and forget an HTTP request to wake up the worker instantly
+    threading.Thread(target=_ping_worker, daemon=True).start()
+    
     tasks = [process_batch.s(job_id, batch) for batch in file_id_batches]  # type: ignore[attr-defined]
     chord(tasks)(on_chord_complete.s(job_id))  # type: ignore[attr-defined]
 
