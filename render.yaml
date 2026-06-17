@@ -1,17 +1,31 @@
 services:
+  # ── Backend Web Service (Django + Gunicorn) ──────────────────────
   - type: web
     name: cvextractor-api
     runtime: python
     region: singapore
     plan: free
-    rootDir: cvextractor
+    rootDir: backend
     buildCommand: >
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput &&
       python manage.py migrate
-    startCommand: >
-      celery -A config worker --loglevel=info --concurrency=2 &
-      gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/health/
+    envVars:
+      - fromGroup: cvextractor-env
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+
+  # ── Celery Worker ─────────────────────────────────────────────────
+  - type: worker
+    name: cvextractor-worker
+    runtime: python
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A config worker --loglevel=info --concurrency=2
     envVars:
       - fromGroup: cvextractor-env
       - key: DJANGO_SETTINGS_MODULE
