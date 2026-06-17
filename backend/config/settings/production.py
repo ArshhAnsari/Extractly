@@ -56,12 +56,14 @@ if _gcp_creds_b64:
     _tmpfile.close()
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _tmpfile.name
 
+import ssl
+
 # ──────────────────────────────────────────────
 # Celery — Allow Upstash rediss:// connections
 # ──────────────────────────────────────────────
 CELERY_BROKER_USE_SSL = {
-    'ssl_cert_reqs': 'CERT_NONE'
+    'ssl_cert_reqs': ssl.CERT_NONE
 }
 CELERY_REDIS_BACKEND_USE_SSL = {
-    'ssl_cert_reqs': 'CERT_NONE'
+    'ssl_cert_reqs': ssl.CERT_NONE
 }
