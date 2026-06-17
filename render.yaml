@@ -6,7 +6,6 @@ services:
     region: singapore
     plan: free
     rootDir: backend
-    pythonVersion: "3.12"
     buildCommand: >
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput &&
@@ -30,7 +29,6 @@ services:
     region: singapore
     plan: free
     rootDir: backend
-    pythonVersion: "3.12"
     buildCommand: pip install -r requirements.txt
     startCommand: bash start_worker.sh
     healthCheckPath: /
