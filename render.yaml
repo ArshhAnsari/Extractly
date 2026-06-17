@@ -1,11 +1,12 @@
 services:
-  # ── Backend Web Service (Django + Gunicorn) ──────────────────────
+  # ── Django Web Service (Gunicorn) ─────────────────────────────────
   - type: web
     name: cvextractor-api
     runtime: python
     region: singapore
     plan: free
     rootDir: backend
+    pythonVersion: "3.12"
     buildCommand: >
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput &&
@@ -17,15 +18,22 @@ services:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.production
 
-  # ── Celery Worker ─────────────────────────────────────────────────
-  - type: worker
+  # ── Celery Worker (disguised as a free web service) ───────────────
+  # Render does not allow type:worker on the free plan.
+  # Workaround: run Celery as a web service with a tiny HTTP health
+  # server in the background so Render's health checks pass.
+  # Keep this service alive by pinging it from cron-job.org every
+  # 10 minutes (free) — otherwise Render spins it down after 15 min.
+  - type: web
     name: cvextractor-worker
     runtime: python
     region: singapore
     plan: free
     rootDir: backend
+    pythonVersion: "3.12"
     buildCommand: pip install -r requirements.txt
-    startCommand: celery -A config worker --loglevel=info --concurrency=2
+    startCommand: bash start_worker.sh
+    healthCheckPath: /
     envVars:
       - fromGroup: cvextractor-env
       - key: DJANGO_SETTINGS_MODULE
