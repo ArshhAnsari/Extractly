@@ -188,6 +188,7 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-lite")
+OCR_SPACE_API_KEY = os.environ.get("OCR_SPACE_API_KEY", "")
 
 # ──────────────────────────────────────────────
 # Google Vision (OCR for images)

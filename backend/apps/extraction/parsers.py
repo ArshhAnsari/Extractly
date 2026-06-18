@@ -26,6 +26,12 @@ def extract_text_from_url(url: str, file_type: str) -> str:
     if not url:
         return ""
 
+    if file_type == FileType.IMAGE:
+        from django.conf import settings
+        provider = getattr(settings, "IMAGE_OCR_PROVIDER", "gemini")
+        if provider == "ocr_space":
+            return _ocr_ocrspace_url(url)
+
     temp_path = _download_to_temp_file(url)
     try:
         if file_type == FileType.PDF:
@@ -205,3 +211,43 @@ def _ocr_google_vision(file_bytes: bytes) -> str:
         return ""
     except Exception as e:
         raise RuntimeError(f"Image OCR failed (Google Vision): {str(e)}")
+
+
+def _ocr_ocrspace_url(file_url: str) -> str:
+    """Extract text from images using OCR.space URL parsing."""
+    import httpx
+    from django.conf import settings
+
+    try:
+        with httpx.Client(timeout=30) as client:
+            response = client.post(
+                "https://api.ocr.space/parse/image",
+                data={
+                    "apikey": getattr(settings, "OCR_SPACE_API_KEY", ""),
+                    "url": file_url,
+                    "language": "eng",
+                    "isOverlayRequired": False,
+                    "OCREngine": 2,
+                    "filetype": "Auto",
+                },
+            )
+            response.raise_for_status()
+    except httpx.TimeoutException:
+        raise RuntimeError("OCR.space request timed out")
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"OCR.space HTTP error: {e.response.status_code}")
+
+    result = response.json()
+
+    if result.get("IsErroredOnProcessing"):
+        raise RuntimeError(
+            result.get("ErrorMessage")
+            or result.get("ErrorDetails")
+            or "OCR.space processing failed"
+        )
+
+    parsed = result.get("ParsedResults", [])
+    if not parsed:
+        raise RuntimeError("OCR.space returned no parsed results")
+
+    return "\n".join(r["ParsedText"] for r in parsed).strip()
