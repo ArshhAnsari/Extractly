@@ -128,7 +128,9 @@ class BatchFileRegisterView(APIView):
                     cloudinary_public_id=fdata["cloudinary_public_id"],
                     original_filename=fdata["original_filename"],
                     file_type=fdata["file_type"],
-                    status=FileStatus.PENDING,
+                    storage_url=fdata.get("storage_url", ""),
+                    bytes=fdata.get("bytes"),
+                    status=FileStatus.VERIFIED if fdata.get("storage_url") else FileStatus.PENDING,
                 )
                 for fdata in files_data
             ]

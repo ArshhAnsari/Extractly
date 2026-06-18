@@ -21,7 +21,7 @@ if "RENDER_EXTERNAL_HOSTNAME" in os.environ:
 # ──────────────────────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = False
 _cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "")
-CORS_ALLOWED_ORIGINS = [o for o in _cors_origins.split(",") if o.strip()]
+CORS_ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _cors_origins.split(",") if o.strip()]
 CORS_ALLOW_CREDENTIALS = True
 
 # ──────────────────────────────────────────────

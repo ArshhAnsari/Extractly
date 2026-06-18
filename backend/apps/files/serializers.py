@@ -37,6 +37,8 @@ class FileRegistrationItemSerializer(serializers.Serializer):
     cloudinary_public_id = serializers.CharField(max_length=512)
     original_filename = serializers.CharField(max_length=255)
     file_type = serializers.ChoiceField(choices=FileType.choices)
+    storage_url = serializers.URLField(required=False, allow_null=True)
+    bytes = serializers.IntegerField(required=False, allow_null=True)
 
 class BatchFileRegistrationSerializer(serializers.Serializer):
     files = FileRegistrationItemSerializer(many=True, allow_empty=False)

@@ -35,12 +35,6 @@ class JobProcessView(APIView):
             
         self.check_object_permissions(request, job)
 
-        if job.status != JobStatus.QUEUED:
-            raise ConflictError(
-                f"Cannot start processing: job is {job.status}. "
-                "Only QUEUED jobs can be processed."
-            )
-
         try:
             job, started = start_job_processing(job.id, allow_existing=True)
         except ProcessingDispatchError as exc:

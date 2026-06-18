@@ -244,6 +244,8 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
           cloudinary_public_id: item.cloudinaryId as string,
           original_filename: item.file.name,
           file_type: item.fileType as BackendFileType,
+          storage_url: item.storageUrl,
+          bytes: item.bytes,
         }))
       );
 
