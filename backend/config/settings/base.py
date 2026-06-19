@@ -187,7 +187,6 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-lite")
 OCR_SPACE_API_KEY = os.environ.get("OCR_SPACE_API_KEY", "")
 
 # ──────────────────────────────────────────────
@@ -195,8 +194,8 @@ OCR_SPACE_API_KEY = os.environ.get("OCR_SPACE_API_KEY", "")
 # ──────────────────────────────────────────────
 GOOGLE_VISION_CREDENTIALS = os.environ.get("GOOGLE_VISION_CREDENTIALS", "")
 
-# OCR backend for image files: "gemini" (default, free) or "google_vision" (requires GCP billing)
-IMAGE_OCR_PROVIDER = os.environ.get("IMAGE_OCR_PROVIDER", "gemini")
+# OCR backend for image files: "ocr_space" (default) or "google_vision" (requires GCP billing)
+IMAGE_OCR_PROVIDER = os.environ.get("IMAGE_OCR_PROVIDER", "ocr_space")
 
 # ──────────────────────────────────────────────
 # Upload and processing constraints

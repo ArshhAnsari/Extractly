@@ -76,9 +76,6 @@ def extract(raw_text: str, fields_snapshot: list) -> dict:
 
     # if provider == "openai":
     #     return openai_extract(raw_text, prompt)
-    #
-    # if provider == "gemini":
-    #     return gemini_extract(raw_text, prompt)
 
     raise ValueError(
         f"Unsupported or unconfigured LLM_PROVIDER: {provider!r}. "
@@ -151,30 +148,5 @@ def groq_extract(raw_text: str, prompt: str) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────
-# GEMINI (commented out, not active)
-# Uncomment this function + the "gemini" branch in extract()
-# if Gemini billing gets enabled and quota stops being the issue.
+# OPENAI (commented out, not active)
 # ─────────────────────────────────────────────────────────────
-# def gemini_extract(raw_text: str, prompt: str) -> dict:
-#     """Extract using Google Gemini (model from settings.GEMINI_MODEL)."""
-#     import google.generativeai as genai
-#
-#     genai.configure(api_key=settings.GEMINI_API_KEY)  # type: ignore
-#
-#     model = genai.GenerativeModel(  # type: ignore
-#         settings.GEMINI_MODEL,
-#         system_instruction=prompt,
-#     )
-#
-#     start = time.perf_counter()
-#     response = model.generate_content(
-#         f"CV Text:\n\n{raw_text}",
-#         generation_config=genai.GenerationConfig(  # type: ignore
-#             response_mime_type="application/json"
-#         ),
-#         request_options={"timeout": 60},
-#     )
-#     elapsed = time.perf_counter() - start
-#     logger.info("Gemini extraction completed in %.2fs", elapsed)
-#
-#     return json.loads(response.text)

@@ -5,7 +5,7 @@ Downloads files from remote storage and extracts raw text
 using specialized libraries.
 
 OCR provider is controlled by the IMAGE_OCR_PROVIDER setting:
-  - "gemini"       (default) — uses Gemini Vision, free tier, no billing required
+  - "ocr_space"     (default) — uses OCR.space Engine 2 API
   - "google_vision" — uses Google Cloud Vision API, requires billing enabled on GCP
 """
 
@@ -28,7 +28,7 @@ def extract_text_from_url(url: str, file_type: str) -> str:
 
     if file_type == FileType.IMAGE:
         from django.conf import settings
-        provider = getattr(settings, "IMAGE_OCR_PROVIDER", "gemini")
+        provider = getattr(settings, "IMAGE_OCR_PROVIDER", "ocr_space")
         if provider == "ocr_space":
             return _ocr_ocrspace_url(url)
 
@@ -138,47 +138,14 @@ def _extract_from_image(file_bytes: bytes) -> str:
     """Route image OCR to the configured provider.
 
     Reads IMAGE_OCR_PROVIDER from Django settings:
-      - "gemini"        → Gemini Vision (default, free tier)
       - "google_vision" → Google Cloud Vision API (requires billing)
     """
     from django.conf import settings
-    provider = getattr(settings, "IMAGE_OCR_PROVIDER", "gemini")
+    provider = getattr(settings, "IMAGE_OCR_PROVIDER", "ocr_space")
 
     if provider == "google_vision":
         return _ocr_google_vision(file_bytes)
-    return _ocr_gemini(file_bytes)
-
-
-# ─── OCR Backends ─────────────────────────────────────────────────────────────
-
-def _ocr_gemini(file_bytes: bytes) -> str:
-    """Extract text from images using Gemini Vision (free tier).
-
-    Uses Gemini's multimodal capability. No billing required beyond
-    the standard Gemini API free tier.
-    """
-    try:
-        from django.conf import settings
-        import google.generativeai as genai  # type: ignore
-
-        genai.configure(api_key=settings.GEMINI_API_KEY)  # type: ignore
-        model = genai.GenerativeModel(settings.GEMINI_MODEL)  # type: ignore
-
-        image_part = {
-            "mime_type": "image/jpeg",
-            "data": base64.b64encode(file_bytes).decode("utf-8"),
-        }
-
-        prompt = (
-            "Extract ALL text from this image exactly as it appears. "
-            "Return only the raw text content, no commentary or formatting. "
-            "Preserve line breaks where they appear in the image."
-        )
-
-        response = model.generate_content([prompt, image_part])
-        return response.text.strip() if response.text else ""
-    except Exception as e:
-        raise RuntimeError(f"Image OCR failed (Gemini): {str(e)}")
+    raise RuntimeError(f"Unsupported image OCR provider for downloaded bytes: {provider}")
 
 
 def _ocr_google_vision(file_bytes: bytes) -> str:
