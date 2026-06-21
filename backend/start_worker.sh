@@ -30,6 +30,10 @@ print(f'Health server listening on port {port}', flush=True)
 server.serve_forever()
 " &
 
+# Start Celery Beat in the background for periodic tasks
+# (e.g. recover_stale_jobs every 10 minutes).
+celery -A config beat --loglevel=info &
+
 # Start the Celery worker in the foreground.
 # Render keeps the service alive as long as this process runs.
 exec celery -A config worker --loglevel=info --concurrency=2

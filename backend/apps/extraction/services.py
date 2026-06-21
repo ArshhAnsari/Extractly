@@ -2,7 +2,7 @@
 Shared orchestration helpers for the extraction pipeline.
 """
 import logging
-import threading
+import time
 import urllib.request
 
 from celery import chord
@@ -23,19 +23,45 @@ class ProcessingDispatchError(Exception):
     """Raised when a job cannot be dispatched for extraction."""
 
 
-def _ping_worker():
-    """Silently ping the worker's HTTP port to wake it up from Render sleep."""
+def _ping_worker() -> bool:
+    """
+    Wake the Celery worker from Render free-tier sleep.
+
+    Render free services take 30–60 s to cold-start, so a single short
+    request is not enough.  We retry up to 3 times with increasing
+    timeouts (15 s → 30 s → 45 s) and a small back-off pause between
+    attempts.  Returns True if any attempt got a response.
+    """
     worker_url = getattr(settings, "WORKER_URL", "https://cvextractor-worker.onrender.com/")
-    try:
-        urllib.request.urlopen(worker_url, timeout=5)
-    except Exception as e:
-        logger.debug("Worker ping background task finished (or timed out, which is expected during wake): %s", e)
+    max_attempts = 3
+    base_timeout = 15  # seconds; doubles each retry
+
+    for attempt in range(1, max_attempts + 1):
+        timeout = base_timeout * attempt  # 15, 30, 45
+        try:
+            urllib.request.urlopen(worker_url, timeout=timeout)
+            logger.info("Worker ping succeeded on attempt %d/%d", attempt, max_attempts)
+            return True
+        except Exception as exc:
+            logger.info(
+                "Worker ping attempt %d/%d (timeout=%ds) did not succeed: %s",
+                attempt, max_attempts, timeout, exc,
+            )
+            if attempt < max_attempts:
+                time.sleep(2 * attempt)  # brief pause before next attempt
+
+    logger.warning(
+        "Worker ping: all %d attempts failed — the worker may still be cold-starting. "
+        "Chord will be dispatched anyway; tasks will be picked up once the worker is live.",
+        max_attempts,
+    )
+    return False
 
 
 def _dispatch_chord(job_id: str, file_id_batches: list[list[str]]) -> None:
-    # Fire and forget an HTTP request to wake up the worker instantly
-    threading.Thread(target=_ping_worker, daemon=True).start()
-    
+    # Wake the worker synchronously so it is warm before tasks land in Redis.
+    _ping_worker()
+
     tasks = [process_batch.s(job_id, batch) for batch in file_id_batches]  # type: ignore[attr-defined]
     chord(tasks)(on_chord_complete.s(job_id))  # type: ignore[attr-defined]
 

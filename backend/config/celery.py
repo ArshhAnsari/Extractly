@@ -13,6 +13,11 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 # ──────────────────────────────────────────────
-# Beat schedule placeholder (V2: scheduled cleanup, etc.)
+# Beat schedule — periodic maintenance tasks
 # ──────────────────────────────────────────────
-app.conf.beat_schedule = {}
+app.conf.beat_schedule = {
+    "recover-stale-jobs": {
+        "task": "apps.extraction.tasks.recover_stale_jobs",
+        "schedule": 600.0,  # every 10 minutes
+    },
+}

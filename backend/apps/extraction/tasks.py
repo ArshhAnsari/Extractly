@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from celery import shared_task
@@ -127,9 +128,21 @@ def process_batch(self, job_id, file_ids):
 
         if f.status != FileStatus.VERIFIED:
             flog.warning(
-                "Skipping file — unexpected status",
+                "File has unexpected status — marking as FAILED",
                 extra={"job_id": str(job_id), "file_id": str(f.id), "status": f.status, "task_id": str(task_id)},
             )
+            f.status = FileStatus.FAILED
+            f.save(update_fields=["status"])
+            null_data = {kf["key"]: None for kf in job.fields_snapshot}
+            ExtractedRow.objects.update_or_create(
+                file=f,
+                defaults={
+                    "job": job,
+                    "data": null_data,
+                    "extraction_status": ExtractionStatus.FAILED,
+                },
+            )
+            results.append({"file_id": str(f.id), "status": "FAILED"})
             continue
 
         try:
@@ -201,8 +214,13 @@ def on_chord_complete(results, job_id):
 
     done_count = job.files.filter(status=FileStatus.DONE).count()  # type: ignore[attr-defined]
     failed_count = job.files.filter(status=FileStatus.FAILED).count()  # type: ignore[attr-defined]
+    # Files still stuck in VERIFIED/PENDING were never processed — count as failures
+    unprocessed_count = job.files.exclude(  # type: ignore[attr-defined]
+        status__in=[FileStatus.DONE, FileStatus.FAILED]
+    ).count()
+    failed_count += unprocessed_count
 
-    if failed_count == 0:
+    if failed_count == 0 and done_count > 0:
         job.status = JobStatus.COMPLETE
     elif done_count > 0 and failed_count > 0:
         job.status = JobStatus.PARTIAL
@@ -224,3 +242,61 @@ def on_chord_complete(results, job_id):
             "failed": failed_count,
         },
     )
+
+
+@shared_task
+def recover_stale_jobs():
+    """
+    Periodic safety net: find jobs stuck in PROCESSING for too long
+    and mark them FAILED so the frontend never shows an infinite spinner.
+
+    Scheduled via Celery Beat (see config/celery.py).
+    """
+    log = _log("recovery")
+    stale_threshold = timezone.now() - timedelta(
+        minutes=getattr(settings, "STALE_JOB_TIMEOUT_MINUTES", 15)
+    )
+
+    stale_jobs = Job.objects.filter(
+        status=JobStatus.PROCESSING,
+        created_at__lte=stale_threshold,
+    )
+
+    recovered = 0
+    for job in stale_jobs:
+        done_count = job.files.filter(status=FileStatus.DONE).count()  # type: ignore[attr-defined]
+        failed_count = job.files.filter(status=FileStatus.FAILED).count()  # type: ignore[attr-defined]
+        unprocessed_count = job.files.exclude(  # type: ignore[attr-defined]
+            status__in=[FileStatus.DONE, FileStatus.FAILED]
+        ).count()
+        failed_count += unprocessed_count
+
+        if done_count > 0 and failed_count > 0:
+            job.status = JobStatus.PARTIAL
+        elif done_count > 0 and failed_count == 0:
+            job.status = JobStatus.COMPLETE
+        else:
+            job.status = JobStatus.FAILED
+
+        job.done_files = done_count
+        job.failed_files = failed_count
+        job.completed_at = timezone.now()
+        job.save(update_fields=["status", "done_files", "failed_files", "completed_at"])
+        recovered += 1
+        log.info(
+            "Recovered stale job",
+            extra={
+                "job_id": str(job.id),
+                "file_id": "-",
+                "task_id": "-",
+                "final_status": job.status,
+                "done": done_count,
+                "failed": failed_count,
+            },
+        )
+
+    if recovered:
+        log.info(
+            "Stale job recovery complete",
+            extra={"job_id": "recovery", "file_id": "-", "task_id": "-", "recovered_count": recovered},
+        )
