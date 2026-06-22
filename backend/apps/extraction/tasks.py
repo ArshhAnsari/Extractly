@@ -247,14 +247,22 @@ def on_chord_complete(results, job_id):
 @shared_task
 def recover_stale_jobs():
     """
-    Periodic safety net: find jobs stuck in PROCESSING for too long
-    and mark them FAILED so the frontend never shows an infinite spinner.
+    Periodic safety net: find jobs stuck in PROCESSING for too long.
+
+    - If NO files were processed → chord was lost → reset to QUEUED
+      and attempt to re-dispatch.
+    - If SOME files were processed → mark as PARTIAL / FAILED.
 
     Scheduled via Celery Beat (see config/celery.py).
+
+    NOTE: This only runs when the worker is alive (Beat runs on the
+    worker).  For recovery when the worker is sleeping, see
+    try_redispatch_stale_job() in services.py (triggered by
+    the status-polling endpoint on the API service).
     """
     log = _log("recovery")
     stale_threshold = timezone.now() - timedelta(
-        minutes=getattr(settings, "STALE_JOB_TIMEOUT_MINUTES", 15)
+        minutes=getattr(settings, "STALE_JOB_TIMEOUT_MINUTES", 5)
     )
 
     stale_jobs = Job.objects.filter(
@@ -269,6 +277,38 @@ def recover_stale_jobs():
         unprocessed_count = job.files.exclude(  # type: ignore[attr-defined]
             status__in=[FileStatus.DONE, FileStatus.FAILED]
         ).count()
+
+        if done_count == 0 and failed_count == 0:
+            # ── Chord was lost — no files were touched at all ──
+            # Reset to QUEUED so start_job_processing can re-dispatch.
+            log.info(
+                "Job %s: 0 files processed — chord was lost. Resetting to QUEUED.",
+                extra={"job_id": str(job.id), "file_id": "-", "task_id": "-"},
+            )
+            job.status = JobStatus.QUEUED
+            job.save(update_fields=["status"])
+            try:
+                from apps.extraction.services import start_job_processing
+                start_job_processing(job.id, allow_existing=False)
+                log.info(
+                    "Re-dispatched lost job",
+                    extra={"job_id": str(job.id), "file_id": "-", "task_id": "-"},
+                )
+            except Exception as exc:
+                log.warning(
+                    "Could not re-dispatch job %s, marking FAILED: %s",
+                    job.id,
+                    exc,
+                    extra={"job_id": str(job.id), "file_id": "-", "task_id": "-"},
+                )
+                job.status = JobStatus.FAILED
+                job.failed_files = job.total_files
+                job.completed_at = timezone.now()
+                job.save(update_fields=["status", "failed_files", "completed_at"])
+            recovered += 1
+            continue
+
+        # ── Some files were processed — finalise the job ──
         failed_count += unprocessed_count
 
         if done_count > 0 and failed_count > 0:
@@ -300,3 +340,4 @@ def recover_stale_jobs():
             "Stale job recovery complete",
             extra={"job_id": "recovery", "file_id": "-", "task_id": "-", "recovered_count": recovered},
         )
+

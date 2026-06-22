@@ -11,6 +11,8 @@ GET  /api/v1/jobs/{job_id}/rows/        — paginated extracted rows
 PATCH /api/v1/jobs/{job_id}/rows/{row_id}/ — update extracted row data
 """
 
+import logging
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework import status as http_status
@@ -23,6 +25,8 @@ from .constants import MASTER_FIELDS
 from .models import Job, JobStatus
 from .serializers import JobCreateSerializer
 from apps.files.models import ExtractedRow
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────
@@ -162,12 +166,31 @@ class JobStatusView(APIView):
 
     Lightweight polling endpoint for the progress UI.
     Returns only job_id, status, and file counts.
+
+    Also acts as a recovery mechanism: if the job has been stuck in
+    PROCESSING with zero files touched for longer than
+    STALE_JOB_TIMEOUT_MINUTES, it resets the job to QUEUED and
+    re-dispatches.  This is critical because Celery Beat (which runs
+    recover_stale_jobs) lives on the worker service — which may be
+    sleeping on Render free tier.
     """
 
     permission_classes = [IsAuthenticated, IsOwner]
 
     def get(self, request, job_id):
         job = _get_job_for_user(job_id, request.user)
+
+        # ── API-side stale-job recovery ──────────────────────────
+        if job.status == JobStatus.PROCESSING:
+            try:
+                from apps.extraction.services import try_redispatch_stale_job
+                redispatched = try_redispatch_stale_job(job)
+                if redispatched:
+                    job.refresh_from_db()
+                    logger.info("Auto-recovered stale job %s via status poll", job_id)
+            except Exception:
+                logger.exception("Error during stale-job recovery for %s", job_id)
+
         return success(data={
             "job_id": str(job.id),
             "status": job.status,

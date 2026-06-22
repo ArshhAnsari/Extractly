@@ -74,7 +74,12 @@ export const jobsApi = {
   startProcessing: async (
     jobId: string
   ): Promise<ApiResponse<{ job_id: string; status: Job['status']; total_files: number; message: string }>> => {
-    const res = await apiClient.post(`/jobs/${jobId}/process/`);
+    // Longer timeout: backend wakes the sleeping Render worker and waits
+    // for Celery readiness before dispatching (can take up to ~100 s on
+    // free-tier cold start).
+    const res = await apiClient.post(`/jobs/${jobId}/process/`, {}, {
+      timeout: 150_000,
+    });
     return res.data;
   },
 

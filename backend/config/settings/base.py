@@ -169,6 +169,11 @@ CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300  # 5 minutes per task
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
+CELERY_RESULT_EXPIRES = 86400  # 24 hours — explicit for Upstash Redis
+
+# How long a job can sit in PROCESSING with 0 files touched before
+# the status-polling endpoint (and Celery Beat) consider it stale.
+STALE_JOB_TIMEOUT_MINUTES = int(os.environ.get("STALE_JOB_TIMEOUT_MINUTES", "5"))
 
 # ──────────────────────────────────────────────
 # Cloudinary
