@@ -96,13 +96,16 @@ def _verify_worker_ready(max_wait: int = 90, poll_interval: int = 5) -> bool:
 # ──────────────────────────────────────────────
 
 def _dispatch_chord(job_id: str, file_id_batches: list[list[str]]) -> None:
-    """Wake the worker, verify readiness, then dispatch the chord."""
+    """Wake the worker, verify readiness, then dispatch the chord after commit."""
     _ping_worker()
     _verify_worker_ready()
 
-    tasks = [process_batch.s(job_id, batch) for batch in file_id_batches]  # type: ignore[attr-defined]
-    chord(tasks)(on_chord_complete.s(job_id))  # type: ignore[attr-defined]
-    logger.info("Chord dispatched for job %s (%d batches)", job_id, len(file_id_batches))
+    def dispatch():
+        tasks = [process_batch.s(job_id, batch) for batch in file_id_batches]  # type: ignore[attr-defined]
+        chord(tasks)(on_chord_complete.s(job_id))  # type: ignore[attr-defined]
+        logger.info("Chord dispatched for job %s (%d batches)", job_id, len(file_id_batches))
+
+    transaction.on_commit(dispatch)
 
 
 # ──────────────────────────────────────────────

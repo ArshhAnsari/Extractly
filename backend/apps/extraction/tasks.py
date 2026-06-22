@@ -115,7 +115,12 @@ def process_batch(self, job_id, file_ids):
         extra={"job_id": str(job_id), "file_count": len(file_ids), "task_id": str(task_id)},
     )
 
-    job = Job.objects.get(pk=job_id)
+    try:
+        job = Job.objects.get(pk=job_id)
+    except Job.DoesNotExist:
+        log.error("Job.DoesNotExist in worker! Received job_id=%r, file_ids=%r", job_id, file_ids)
+        raise
+
     files = list(File.objects.filter(id__in=file_ids))
     Schema = build_schema(job.fields_snapshot)
 
