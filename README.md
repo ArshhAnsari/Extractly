@@ -16,7 +16,7 @@ Extractly is a multi-tenant SaaS platform for HR teams and recruiters. Upload up
 
 ## Demo
 
-[![Extractly Demo](docs/0622-Cover.jpg)](docs/0622.mp4)
+[![Extractly Demo](docs/0622-Cover.jpg)](docs/demo-gif.gif)
 
 > Full pipeline: upload → webhook verification → Celery Chord extraction
 > → OCR + LLM → sheet view → merge export.
