@@ -14,6 +14,14 @@ Extractly is a multi-tenant SaaS platform for HR teams and recruiters. Upload up
 > **Live demo:** [cvsystem.vercel.app](https://cvsystem.vercel.app)  
 > **API base:** [cvextractor-api.onrender.com/api/v1](https://cvextractor-api.onrender.com/api/v1)
 
+## Demo
+
+[![Extractly Demo](docs/0622-Cover.jpg)](docs/0622.mp4)
+
+> Full pipeline: upload → webhook verification → Celery Chord extraction
+> → OCR + LLM → sheet view → merge export.
+> Watch the Render worker logs process a scanned image CV in real time.
+
 ---
 
 ## Table of Contents
