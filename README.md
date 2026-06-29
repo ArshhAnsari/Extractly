@@ -34,14 +34,15 @@ Extractly is a multi-tenant SaaS platform for HR teams and recruiters. Upload up
    - [Step 3: Async Extraction](#step-3-async-extraction-celery-chord)
    - [Step 4: LLM + OCR](#step-4-llm--ocr-the-extraction-core)
    - [Step 5: Export](#step-5-export--merge)
-4. [Data Model](#data-model)
-5. [API Reference](#api-reference)
-6. [Tech Stack](#tech-stack)
-7. [Project Structure](#project-structure)
-8. [Two Things I Had to Figure Out](#two-things-i-had-to-figure-out)
-9. [Environment Variables](#environment-variables)
-10. [Local Setup](#local-setup)
-11. [Deployment](#deployment)
+4. [Duplicate CV Detection](#duplicate-cv-detection)
+5. [Data Model](#data-model)
+6. [API Reference](#api-reference)
+7. [Tech Stack](#tech-stack)
+8. [Project Structure](#project-structure)
+9. [Three Things I Had to Figure Out](#three-things-i-had-to-figure-out)
+10. [Environment Variables](#environment-variables)
+11. [Local Setup](#local-setup)
+12. [Deployment](#deployment)
 
 ---
 
@@ -64,6 +65,7 @@ Most hiring teams get CVs as a wall of PDFs and spend hours copy-pasting candida
 - Failed files set `PARTIAL` status. The sheet unlocks anyway. Null cells are the only signal — no warning banners.
 - `raw_text` is cached per file as a V2 hook for delta re-extraction without re-uploading.
 - File bytes never pass through Django. Zero egress cost on the API server.
+- Duplicate CVs are blocked at three layers: the frontend store (pre-upload), the sign endpoint (pre-Cloudinary), and batch registration (pre-DB). OS-generated suffixes like `arsh (1).pdf` are normalized before comparison so they are never treated as new files.
 
 ---
 
@@ -274,6 +276,74 @@ Pure DB read — no re-extraction, no LLM calls. Just flatten and export.
 
 ---
 
+## Duplicate CV Detection
+
+When a user downloads a file that already exists in their downloads folder, the OS renames the duplicate automatically:
+
+```
+arsh.pdf        ← original
+arsh (1).pdf    ← second download
+arsh(2).pdf     ← third download (no space variant)
+```
+
+Because these are different strings, a naive exact-string check treats all three as separate files — wasting LLM credits and polluting the sheet. Extractly blocks duplicates at **three independent layers**:
+
+### Layer 1 — Frontend Store (pre-upload)
+
+`uploadStore.ts` normalizes every filename before adding it to the queue. `arsh (1).pdf` and `arsh.pdf` resolve to the same key and the duplicate is dropped silently with a toast warning.
+
+```ts
+// Strips OS-generated copy suffixes before comparison
+const normalizeFilename = (filename: string): string => {
+  const match = filename.match(/^(.*?)(\.[^.]*)?$/);
+  const stem = (match?.[1] ?? filename).replace(/\s*\(\d+\)$/, '');
+  const ext = match?.[2] ?? '';
+  return stem + ext;
+};
+```
+
+### Layer 2 — Sign Endpoint (pre-Cloudinary)
+
+`POST /jobs/{id}/upload/sign/` normalizes the incoming filename and checks it against all files already registered for the job. If the normalized name already exists, the request is rejected with `409 CONFLICT` before a Cloudinary signature is issued — the file is never uploaded.
+
+```python
+def normalize_filename(filename: str) -> str:
+    stem, ext = os.path.splitext(filename)
+    return re.sub(r'\s*\(\d+\)$', '', stem) + ext
+
+# In UploadSignView.post():
+normalized_name = normalize_filename(filename)
+existing_names = {
+    normalize_filename(n)
+    for n in File.objects.filter(job=job).values_list('original_filename', flat=True)
+}
+if normalized_name in existing_names:
+    raise ConflictError(f"A file equivalent to '{filename}' already exists in this job.")
+```
+
+### Layer 3 — Batch Registration (pre-DB)
+
+`POST /jobs/{id}/files/` runs two deduplication passes inside a `SELECT FOR UPDATE` transaction:
+
+1. **Intra-batch:** removes duplicates within the same request payload.
+2. **Cross-DB:** compares against every file already in the database for that job.
+
+Only genuinely new files are inserted via `bulk_create`. If the entire batch is duplicate, registration succeeds silently (idempotent) — the job moves to `QUEUED` using the existing file count.
+
+### Sheet-Level Deletion
+
+From the sheet view, users can select one or more rows and delete them permanently. Each deletion:
+
+1. Deletes the `File` record (cascades to `ExtractedRow` via `OneToOneField`).
+2. Recalculates `Job.total_files`, `done_files`, `failed_files`, and `status` atomically in the same transaction — the job counter never drifts.
+
+| Endpoint | Notes |
+|---|---|
+| `DELETE /jobs/{id}/rows/{row_id}/` | Deletes a single row + its file, recalculates job stats |
+| `DELETE /jobs/{id}/rows/` | Bulk delete — body: `{"row_ids": [...]}` |
+
+---
+
 ## Data Model
 
 ```
@@ -340,6 +410,8 @@ All endpoints are under `/api/v1/`. JWT access token required as `Authorization:
 | `POST` | `/jobs/{id}/process/` | Dispatches Celery Chord, moves job to `PROCESSING` |
 | `GET` | `/jobs/{id}/rows/` | Returns all extracted rows (accessible only when `COMPLETE` or `PARTIAL`) |
 | `PATCH` | `/jobs/{id}/rows/{row_id}/` | Inline cell edit — partial update on `ExtractedRow.data` |
+| `DELETE` | `/jobs/{id}/rows/{row_id}/` | Deletes a single row + its `File`; recalculates job stats atomically |
+| `DELETE` | `/jobs/{id}/rows/` | Bulk delete — body: `{"row_ids": [...]}` |
 
 ### Export
 | Method | Endpoint | Notes |
@@ -434,7 +506,7 @@ cvsystem/
 
 ---
 
-## Two Things I Had to Figure Out
+## Things I Had to Figure Out
 
 ### 1. The DRF `?format=` Content Negotiation Bug
 
@@ -470,6 +542,24 @@ def register_files(job, file_data_list):
 This guarantees that any subsequent webhook lookup for those files always finds a committed record. The idempotency guard on the webhook handler (skip if already `VERIFIED`) handles the rare case of duplicate webhook delivery.
 
 **Lesson:** Any time you create a record and immediately publish a message or fire an external notification based on it, wrap the publish in `transaction.on_commit()`. The commit is not guaranteed to be visible to other processes until that callback fires.
+
+---
+
+### 3. Duplicate CV Detection Across Three Layers
+
+Duplicate CVs were silently passing through the original upload pipeline. When a user re-downloads a file on Windows or macOS, the OS renames it: `arsh.pdf` becomes `arsh (1).pdf`. Because the strings differ, the original exact-match check treated them as different files — resulting in the same CV being processed twice, costing two LLM calls, and appearing as two rows in the sheet.
+
+The fix required three coordinated changes:
+
+**Frontend (`uploadStore.ts`):** Added `normalizeFilename()` which strips OS copy suffixes before checking against queued files. The user never sees the duplicate reach the upload queue.
+
+**Sign endpoint (`UploadSignView`):** Even if the frontend check is bypassed (direct API call, race condition), the sign endpoint normalizes the incoming filename and compares against existing files for that job. A `409 CONFLICT` is returned before a Cloudinary signature is issued — the file is never uploaded and no Cloudinary credit is used.
+
+**Batch registration (`BatchFileRegisterView`):** As the final guard, registration normalizes all filenames in both the incoming payload and the database, deduplicates across both, and only `bulk_create`s genuinely new files. A `SELECT FOR UPDATE` lock prevents race conditions from concurrent registration calls on the same job.
+
+A critical typo was also caught during this work: `update_fields=["total_fields", "status"]` → `update_fields=["total_files", "status"]`. Without this fix, the all-duplicate-batch path would have raised a `django.core.exceptions.FieldError` 500 in production.
+
+**Lesson:** Defense in depth for input validation. Each layer (client, API gateway, DB transaction) should independently enforce the invariant. Never rely solely on the client to filter bad input — but also don't rely solely on the DB constraint to catch it, because by the time a DB error fires, a Cloudinary upload may already have been charged.
 
 ---
 
