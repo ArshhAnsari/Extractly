@@ -3,6 +3,8 @@ import uuid
 import json
 import hashlib
 import hmac
+import os
+import re
 from django.conf import settings
 from django.db import transaction
 from rest_framework import status as http_status
@@ -20,6 +22,17 @@ from core.response import success
 from apps.jobs.models import Job, JobStatus
 from .models import File, FileStatus
 from .serializers import BatchFileRegistrationSerializer, UploadSignRequestSerializer
+
+
+def normalize_filename(filename: str) -> str:
+    """
+    Strips OS-generated duplicate suffixes from a filename so that
+    'arsh.pdf', 'arsh(1).pdf', and 'arsh (2).pdf' all resolve to 'arsh.pdf'.
+    """
+    stem, ext = os.path.splitext(filename)
+    cleaned_stem = re.sub(r'\s*\(\d+\)$', '', stem)
+    return cleaned_stem + ext
+
 
 
 class UploadSignView(APIView):
@@ -52,7 +65,18 @@ class UploadSignView(APIView):
             errors = [str(err) for err_list in serializer.errors.values() for err in err_list]
             raise ValidationError("; ".join(errors))
 
+        filename = serializer.validated_data["filename"]
+        normalized_name = normalize_filename(filename)
+
+        existing_names = {
+            normalize_filename(n)
+            for n in File.objects.filter(job=job).values_list('original_filename', flat=True)
+        }
+        if normalized_name in existing_names:
+            raise ConflictError(f"A file equivalent to '{filename}' already exists in this job.")
+
         timestamp = int(time.time())
+
         public_id = f"cvextractor/{request.user.id}/{job.id}/{uuid.uuid4()}"
 
         api_secret = settings.CLOUDINARY_API_SECRET
@@ -122,6 +146,44 @@ class BatchFileRegisterView(APIView):
 
         with transaction.atomic():
             job = Job.objects.select_for_update().get(pk=job.pk)
+
+            # Intra-batch deduplication
+            seen_keys = set()
+            unique_files_data = []
+            for fdata in files_data:
+                norm_name = normalize_filename(fdata["original_filename"])
+                file_bytes = fdata.get("bytes")
+                key = (norm_name, file_bytes)
+                if key not in seen_keys:
+                    unique_files_data.append(fdata)
+                    seen_keys.add(key)
+
+            # Cross-DB deduplication
+            existing_files_qs = File.objects.filter(job=job).values_list('original_filename', 'bytes')
+            existing_keys = {
+                (normalize_filename(name), size)
+                for name, size in existing_files_qs
+            }
+            filtered_files_data = [
+                fdata for fdata in unique_files_data
+                if (normalize_filename(fdata["original_filename"]), fdata.get("bytes")) not in existing_keys
+            ]
+
+            if not filtered_files_data:
+                existing_count = File.objects.filter(job=job).count()
+                if existing_count == 0:
+                    raise ValidationError("All files in the batch are duplicates, and no files are registered for this job.")
+                job.total_files = existing_count
+                job.status = JobStatus.QUEUED
+                job.save(update_fields=["total_files", "status"])
+                return success(
+                    data={
+                        "registered": job.total_files,
+                        "job_status": job.status
+                    },
+                    status=http_status.HTTP_200_OK
+                )
+
             files_to_create = [
                 File(
                     job=job,
@@ -132,11 +194,11 @@ class BatchFileRegisterView(APIView):
                     bytes=fdata.get("bytes"),
                     status=FileStatus.VERIFIED if fdata.get("storage_url") else FileStatus.PENDING,
                 )
-                for fdata in files_data
+                for fdata in filtered_files_data
             ]
             File.objects.bulk_create(files_to_create)
 
-            job.total_files = len(files_to_create)
+            job.total_files = File.objects.filter(job=job).count()
             job.status = JobStatus.QUEUED
             job.save(update_fields=["total_files", "status"])
 
@@ -147,6 +209,7 @@ class BatchFileRegisterView(APIView):
             },
             status=http_status.HTTP_201_CREATED
         )
+
 
 class CloudinaryWebhookView(APIView):
     """

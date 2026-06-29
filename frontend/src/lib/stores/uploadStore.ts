@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 import { jobsApi } from '../api/jobs';
+import { toast } from 'sonner';
 
 export type UploadStatus = 'PENDING' | 'SIGNING' | 'UPLOADING' | 'REGISTERING' | 'SUCCESS' | 'ERROR';
 type BackendFileType = 'PDF' | 'DOCX' | 'IMAGE';
@@ -61,8 +62,40 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
   setMinimized: (minimized) => set({ isMinimized: minimized }),
 
   addUploads: (jobId, files) => {
+    const state = get();
+    
+    const normalizeFilename = (filename: string): string => {
+      const match = filename.match(/^(.*?)(\.[^.]*)?$/);
+      if (!match) return filename;
+      const stem = match[1] || '';
+      const ext = match[2] || '';
+      const cleanedStem = stem.replace(/\s*\(\d+\)$/, '');
+      return cleanedStem + ext;
+    };
+
+    const existingNormalizedNames = new Set(
+      state.items
+        .filter((item) => item.jobId === jobId)
+        .map((item) => normalizeFilename(item.file.name))
+    );
+
+    const uniqueFiles = files.filter((file) => {
+      const normalized = normalizeFilename(file.name);
+      if (existingNormalizedNames.has(normalized)) {
+        return false;
+      }
+      return true;
+    });
+
+    const skippedCount = files.length - uniqueFiles.length;
+    if (skippedCount > 0) {
+      toast.warning(`${skippedCount} file(s) with duplicate exact names were skipped.`);
+    }
+
+    if (uniqueFiles.length === 0) return;
+
     const timestamp = Date.now();
-    const newItems: UploadItem[] = files.map((file, index) => ({
+    const newItems: UploadItem[] = uniqueFiles.map((file, index) => ({
       id: `${jobId}-${file.name}-${timestamp}-${index}`,
       file,
       jobId,

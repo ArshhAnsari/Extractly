@@ -140,5 +140,21 @@ export const rowsApi = {
       res.data,
       (payload: { row_id: string; data: Record<string, unknown> }) => payload
     );
+  },
+
+  deleteRow: async (
+    jobId: string,
+    rowId: string
+  ): Promise<ApiResponse<{ message: string }>> => {
+    const res = await apiClient.delete(`/jobs/${jobId}/rows/${rowId}/`);
+    return res.data;
+  },
+
+  bulkDeleteRows: async (
+    jobId: string,
+    rowIds: string[]
+  ): Promise<ApiResponse<{ message: string }>> => {
+    const res = await apiClient.delete(`/jobs/${jobId}/rows/`, { data: { row_ids: rowIds } });
+    return res.data;
   }
 };

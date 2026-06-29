@@ -17,9 +17,11 @@ import { EditableCell } from './EditableCell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ArrowUpDown, AlertCircle, Search } from 'lucide-react';
+import { ArrowUpDown, AlertCircle, Search, Trash2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ExportButton } from '../export/ExportButton';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
 
 interface SheetTableProps {
   job: Job;
@@ -33,8 +35,20 @@ export function SheetTable({ job }: SheetTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [rowSelection, setRowSelection] = useState({});
   
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleDeleteRow = async (rowId: string) => {
+    if (!confirm('Are you sure you want to delete this row?')) return;
+    const res = await rowsApi.deleteRow(job.id, rowId);
+    if (res.success) {
+      toast.success('Row deleted successfully');
+      setData(prev => prev.filter(r => r.id !== rowId));
+    } else {
+      toast.error(res.error.message || 'Failed to delete row');
+    }
+  };
 
   useEffect(() => {
     setIsLoading(true);
@@ -79,6 +93,28 @@ export function SheetTable({ job }: SheetTableProps) {
 
   const columns = useMemo<ColumnDef<ExtractedRow>[]>(() => {
     const baseCols: ColumnDef<ExtractedRow>[] = [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <div className="flex items-center justify-center h-full px-2">
+            <Checkbox
+              checked={table.getIsAllRowsSelected()}
+              onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
+              aria-label="Select all"
+            />
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center h-full px-2">
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Select row"
+            />
+          </div>
+        ),
+        size: 40,
+      },
       {
         id: 'filename',
         header: 'File Name',
@@ -143,8 +179,34 @@ export function SheetTable({ job }: SheetTableProps) {
       size: 200,
     }));
 
-    return [...baseCols, ...dynamicCols];
-  }, [job.fields_snapshot, job.id]);
+    const actionCols: ColumnDef<ExtractedRow>[] = [
+      {
+        id: 'actions',
+        header: '',
+        cell: info => {
+          const row = info.row.original;
+          return (
+            <div className="flex items-center justify-center h-full px-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteRow(row.id);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        },
+        size: 50,
+      }
+    ];
+
+    return [...baseCols, ...dynamicCols, ...actionCols];
+  }, [job.fields_snapshot, job.id, handleDeleteRow]);
 
   const table = useReactTable({
     data,
@@ -153,14 +215,32 @@ export function SheetTable({ job }: SheetTableProps) {
       sorting,
       columnFilters,
       globalFilter,
+      rowSelection,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   });
+
+  const handleBulkDelete = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    const selectedIds = selectedRows.map(r => r.original.id);
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected row(s)?`)) return;
+
+    const res = await rowsApi.bulkDeleteRows(job.id, selectedIds);
+    if (res.success) {
+      toast.success(`${selectedIds.length} row(s) deleted successfully`);
+      setData(prev => prev.filter(r => !selectedIds.includes(r.id)));
+      table.resetRowSelection();
+    } else {
+      toast.error(res.error.message || 'Failed to delete rows');
+    }
+  };
 
   const { rows } = table.getRowModel();
 
@@ -239,7 +319,17 @@ export function SheetTable({ job }: SheetTableProps) {
             </div>
           </div>
         </div>
-        <div className="shrink-0 w-full sm:w-auto flex justify-end">
+        <div className="shrink-0 w-full sm:w-auto flex items-center justify-end gap-2">
+          {Object.keys(rowSelection).length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected ({Object.keys(rowSelection).length})
+            </Button>
+          )}
           <ExportButton jobId={job.id} jobName={job.name} />
         </div>
       </div>
@@ -265,22 +355,30 @@ export function SheetTable({ job }: SheetTableProps) {
                     className="flex flex-col justify-between p-2 border-r border-border last:border-r-0"
                     style={{ width: header.getSize() }}
                   >
-                    <div 
-                      className="flex items-center justify-between cursor-pointer group mb-2"
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <span className="font-semibold text-sm truncate" title={header.column.columnDef.header as string}>
+                    {header.column.id !== 'select' && header.column.id !== 'actions' ? (
+                      <>
+                        <div 
+                          className="flex items-center justify-between cursor-pointer group mb-2"
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          <span className="font-semibold text-sm truncate" title={header.column.columnDef.header as string}>
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </span>
+                          <ArrowUpDown className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        {/* Column Filter */}
+                        <Input
+                          placeholder="Filter..."
+                          value={(header.column.getFilterValue() ?? '') as string}
+                          onChange={e => header.column.setFilterValue(e.target.value)}
+                          className="h-8 text-xs bg-background border-border"
+                        />
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-center h-full min-h-[72px]">
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                      </span>
-                      <ArrowUpDown className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    {/* Column Filter */}
-                    <Input
-                      placeholder="Filter..."
-                      value={(header.column.getFilterValue() ?? '') as string}
-                      onChange={e => header.column.setFilterValue(e.target.value)}
-                      className="h-8 text-xs bg-background border-border"
-                    />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

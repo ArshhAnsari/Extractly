@@ -24,7 +24,8 @@ from core.response import success
 from .constants import MASTER_FIELDS
 from .models import Job, JobStatus
 from .serializers import JobCreateSerializer
-from apps.files.models import ExtractedRow
+from apps.files.models import ExtractedRow, File, FileStatus
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -248,8 +249,9 @@ def _row_payload(row):
 class JobRowsView(APIView):
     """
     GET /api/v1/jobs/{job_id}/rows/
+    DELETE /api/v1/jobs/{job_id}/rows/
 
-    Returns all extracted rows for the sheet UI.
+    Returns all extracted rows for the sheet UI, or bulk-deletes specified rows.
     """
     permission_classes = [IsAuthenticated]
 
@@ -272,14 +274,64 @@ class JobRowsView(APIView):
             "rows": [_row_payload(r) for r in qs],
         })
 
+    def delete(self, request, job_id):
+        job = _get_job_for_user(job_id, request.user)
+
+        if job.status not in [JobStatus.COMPLETE, JobStatus.PARTIAL]:
+            raise ConflictError("Row deletion is only allowed for COMPLETE or PARTIAL jobs.")
+
+        row_ids = request.data.get("row_ids")
+        if not isinstance(row_ids, list) or not row_ids:
+            raise ValidationError("Request body must contain a non-empty 'row_ids' list.")
+
+        # Fetch rows belonging to this job
+        rows = ExtractedRow.objects.filter(pk__in=row_ids, job=job).select_related("file")
+        if not rows.exists():
+            raise NotFoundError("No matching rows found.")
+
+        deleted_count = 0
+        with transaction.atomic():
+            for row in rows:
+                file = row.file
+                file.delete() # Cascades to row
+                deleted_count += 1
+            
+            # Recalculate counts
+            remaining_files = job.files.all()
+            job.total_files = remaining_files.count()
+            
+            done_count = remaining_files.filter(status=FileStatus.DONE).count()
+            failed_count = remaining_files.filter(status=FileStatus.FAILED).count()
+            unprocessed_count = remaining_files.exclude(
+                status__in=[FileStatus.DONE, FileStatus.FAILED]
+            ).count()
+            failed_count += unprocessed_count
+            
+            job.done_files = done_count
+            job.failed_files = failed_count
+            
+            if job.total_files == 0:
+                job.status = JobStatus.COMPLETE
+            elif failed_count == 0 and done_count > 0:
+                job.status = JobStatus.COMPLETE
+            elif done_count > 0 and failed_count > 0:
+                job.status = JobStatus.PARTIAL
+            else:
+                job.status = JobStatus.FAILED
+                
+            job.save(update_fields=["total_files", "done_files", "failed_files", "status"])
+
+        return success(
+            data={"message": f"Successfully deleted {deleted_count} row(s)."},
+            status=http_status.HTTP_200_OK
+        )
+
+
 
 class JobRowUpdateView(APIView):
     """
-    PATCH /api/v1/jobs/{job_id}/rows/{row_id}/
-
-    Allows inline cell edits in the sheet UI.
-    Body: {"data": {"field_key": "new_value", ...}}
-    Only the provided keys are merged; unmentioned keys are preserved.
+    PATCH  /api/v1/jobs/{job_id}/rows/{row_id}/ — Allows inline cell edits in the sheet UI.
+    DELETE /api/v1/jobs/{job_id}/rows/{row_id}/ — Deletes the extracted row and its associated File.
     """
     permission_classes = [IsAuthenticated]
 
@@ -320,3 +372,50 @@ class JobRowUpdateView(APIView):
         row.save(update_fields=["data"])
 
         return success(data={"row": _row_payload(row)})
+
+    def delete(self, request, job_id, row_id):
+        job = _get_job_for_user(job_id, request.user)
+
+        if job.status not in [JobStatus.COMPLETE, JobStatus.PARTIAL]:
+            raise ConflictError(
+                "Row deletion is only allowed for COMPLETE or PARTIAL jobs."
+            )
+
+        try:
+            row = ExtractedRow.objects.select_related("file").get(pk=row_id, job=job)
+        except (ExtractedRow.DoesNotExist, ValueError):
+            raise NotFoundError("Resource not found.")
+
+        with transaction.atomic():
+            row.file.delete() # Cascades to row
+            
+            # Recalculate counts
+            remaining_files = job.files.all()
+            job.total_files = remaining_files.count()
+            
+            done_count = remaining_files.filter(status=FileStatus.DONE).count()
+            failed_count = remaining_files.filter(status=FileStatus.FAILED).count()
+            unprocessed_count = remaining_files.exclude(
+                status__in=[FileStatus.DONE, FileStatus.FAILED]
+            ).count()
+            failed_count += unprocessed_count
+            
+            job.done_files = done_count
+            job.failed_files = failed_count
+            
+            if job.total_files == 0:
+                job.status = JobStatus.COMPLETE
+            elif failed_count == 0 and done_count > 0:
+                job.status = JobStatus.COMPLETE
+            elif done_count > 0 and failed_count > 0:
+                job.status = JobStatus.PARTIAL
+            else:
+                job.status = JobStatus.FAILED
+                
+            job.save(update_fields=["total_files", "done_files", "failed_files", "status"])
+
+        return success(
+            data={"message": "Row deleted successfully."},
+            status=http_status.HTTP_200_OK
+        )
+
