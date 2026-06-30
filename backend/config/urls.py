@@ -6,15 +6,25 @@ All API routes are under /api/v1/.
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 
 def health_check(request):
     """Render health check endpoint — must return 200 for the service to go live."""
     return JsonResponse({"status": "ok"})
 
+
 urlpatterns = [
     path("api/health/", health_check),
     path("admin/", admin.site.urls),
+
+    # ── API Documentation (public) ──────────────────────────────────────────
+    # Raw OpenAPI schema (JSON / YAML)
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    # Swagger UI  →  https://cvextractor-api-5evt.onrender.com/docs/
+    path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    # ReDoc UI    →  https://cvextractor-api-5evt.onrender.com/redoc/
+    path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 
     # API v1 routes
     path("api/v1/auth/", include("apps.users.urls")),

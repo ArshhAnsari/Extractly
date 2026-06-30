@@ -40,6 +40,7 @@ THIRD_PARTY_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -128,6 +129,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
     "DEFAULT_THROTTLE_CLASSES": (
         "rest_framework.throttling.AnonRateThrottle",
@@ -143,6 +145,19 @@ REST_FRAMEWORK = {
         "process": "30/hour",
     },
     "NUM_PROXIES": 1,
+}
+
+# ──────────────────────────────────────────────
+# drf-spectacular — OpenAPI schema metadata
+# ──────────────────────────────────────────────
+SPECTACULAR_SETTINGS = {
+    "TITLE": "CV Extractor API",
+    "DESCRIPTION": "REST API for the CV Extractor SaaS platform. Handles authentication, file uploads, CV extraction jobs, exports, and Google Sheets integration.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,  # Hide the schema endpoint itself from the docs UI
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+    },
 }
 
 # ──────────────────────────────────────────────
