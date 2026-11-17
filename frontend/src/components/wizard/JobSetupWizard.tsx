@@ -69,9 +69,9 @@ export function JobSetupWizard({ onComplete }: JobSetupWizardProps) {
   ];
 
   return (
-    <div className="p-6 sm:p-8 max-w-3xl mx-auto w-full">
+    <div className="pt-10 px-3.5 pb-3.5 sm:p-6 md:p-8 max-w-3xl mx-auto w-full">
       {/* Step indicator */}
-      <div className="mb-10 w-full max-w-md mx-auto">
+      <div className="mb-6 sm:mb-8 w-full max-w-md mx-auto pr-9 sm:pr-0">
         <div className="flex items-start justify-between relative">
           {/* Track background — hairline, solid token */}
           <div className="absolute left-0 top-5 -translate-y-1/2 w-full h-px bg-border z-0" />
@@ -94,8 +94,8 @@ export function JobSetupWizard({ onComplete }: JobSetupWizardProps) {
                     backgroundColor: isCompleted
                       ? 'var(--primary)'
                       : isActive
-                      ? 'transparent'
-                      : 'var(--surface)',
+                        ? 'transparent'
+                        : 'var(--surface)',
                     borderColor:
                       isCompleted || isActive ? 'var(--primary)' : 'var(--border)',
                   }}
@@ -105,8 +105,8 @@ export function JobSetupWizard({ onComplete }: JobSetupWizardProps) {
                     isCompleted
                       ? 'text-white'
                       : isActive
-                      ? 'text-primary'
-                      : 'text-muted-foreground'
+                        ? 'text-primary'
+                        : 'text-muted-foreground'
                   )}
                 >
                   {isCompleted ? <Check className="h-5 w-5" /> : s.id}

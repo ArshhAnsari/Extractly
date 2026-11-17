@@ -54,13 +54,13 @@ export default function DashboardPage() {
   ).length;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto w-full relative min-h-full">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-heading font-bold text-foreground">Dashboard</h1>
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full relative min-h-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Dashboard</h1>
         <Button
           asChild
           size="lg"
-          className="bg-primary hover:bg-primary-hover shadow-md hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
+          className="w-full sm:w-auto bg-primary hover:bg-primary-hover shadow-md hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
         >
           <Link href="/jobs/create">
             <Plus className="mr-2 h-4 w-4" /> Create New Job
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       )}
 
       {selectedJobIds.length >= 2 && (
-        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-surface border border-border shadow-2xl rounded-full px-6 py-3 flex items-center space-x-6 z-40 animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-surface border border-border shadow-2xl rounded-full px-4 sm:px-6 py-3 flex items-center space-x-3 sm:space-x-6 z-40 max-w-[calc(100%-2rem)] animate-in slide-in-from-bottom-10 fade-in duration-300">
           <span className="font-medium text-sm">
             {selectedJobIds.length} jobs selected
           </span>

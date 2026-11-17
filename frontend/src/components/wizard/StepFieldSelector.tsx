@@ -108,7 +108,7 @@ export function StepFieldSelector({
   };
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto panel rounded-xl p-6 sm:p-10 mt-6">
+    <div className="space-y-6 sm:space-y-8 max-w-4xl mx-auto panel rounded-xl p-3.5 sm:p-6 md:p-8 mt-4 sm:mt-6">
       {/* Header */}
       <div>
         <h2 className="text-3xl font-heading font-bold mb-3 tracking-tight text-foreground">
@@ -145,7 +145,7 @@ export function StepFieldSelector({
         <h3 className="font-semibold text-[11px] uppercase tracking-widest text-muted-foreground">
           Standard Fields
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {availableFields
             .filter((f) => !f.is_custom)
             .map((field) => {
@@ -289,8 +289,9 @@ export function StepFieldSelector({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/20 transition-colors"
+                  className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/20 transition-colors"
                   onClick={() => removeSelected(field.key)}
+                  aria-label={`Remove ${field.label}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -310,12 +311,12 @@ export function StepFieldSelector({
       </div>
 
       {/* Footer actions */}
-      <div className="flex justify-between pt-6 border-t border-border">
+      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 border-t border-border">
         <Button
           variant="outline"
           size="lg"
           onClick={onBack}
-          className="bg-surface border-border hover:bg-surface-elevated hover:text-foreground transition-colors rounded-lg"
+          className="w-full sm:w-auto bg-surface border-border hover:bg-surface-elevated hover:text-foreground transition-colors rounded-lg h-11 text-sm font-medium"
         >
           Back
         </Button>
@@ -323,7 +324,7 @@ export function StepFieldSelector({
           size="lg"
           onClick={() => onNext(selectedFields)}
           disabled={selectedFields.length === 0}
-          className="bg-primary hover:bg-primary-hover shadow-lg shadow-primary/25 px-8 text-white transition-all hover:-translate-y-0.5 group rounded-lg"
+          className="w-full sm:w-auto bg-primary hover:bg-primary-hover shadow-lg shadow-primary/25 px-5 sm:px-8 text-white transition-all hover:-translate-y-0.5 group rounded-lg h-11 text-sm font-medium"
         >
           Confirm & Continue{' '}
           <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />

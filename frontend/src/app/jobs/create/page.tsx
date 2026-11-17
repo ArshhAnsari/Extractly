@@ -18,8 +18,8 @@ export default function CreateJobPage() {
           </Button>
           <h1 className="text-xl font-heading font-bold">Create New Job</h1>
         </header>
-        <main className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-2xl bg-surface border border-border rounded-xl shadow-sm">
+        <main className="flex-1 flex items-start justify-center p-3 sm:p-6 md:p-8 overflow-y-auto">
+          <div className="w-full max-w-3xl bg-surface border border-border rounded-xl shadow-sm">
             <JobSetupWizard onComplete={() => {}} />
           </div>
         </main>

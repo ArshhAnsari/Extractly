@@ -101,7 +101,7 @@ export function StepUpload({ jobId, onProcess }: StepUploadProps) {
   };
 
   return (
-    <div className="space-y-8 panel rounded-xl p-6 sm:p-10 mt-6">
+    <div className="space-y-6 sm:space-y-8 panel rounded-xl p-3.5 sm:p-6 md:p-8 mt-4 sm:mt-6">
       {/* Header */}
       <div>
         <h2 className="text-3xl font-heading font-bold mb-3 tracking-tight text-foreground">
@@ -116,12 +116,12 @@ export function StepUpload({ jobId, onProcess }: StepUploadProps) {
       {/* Drop zone — no motion wrapper, transition-colors is enough */}
       <div
         className={cn(
-          'border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-200',
+          'border-2 border-dashed rounded-xl p-6 sm:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-200',
           uploadClosed
             ? 'border-border bg-background opacity-50 cursor-not-allowed'
             : isDragging
-            ? 'border-primary bg-primary/10'
-            : 'border-border bg-background hover:border-primary/40 hover:bg-surface'
+              ? 'border-primary bg-primary/10'
+              : 'border-border bg-background hover:border-primary/40 hover:bg-surface'
         )}
         onClick={() => {
           if (!uploadClosed) fileInputRef.current?.click();
@@ -195,8 +195,8 @@ export function StepUpload({ jobId, onProcess }: StepUploadProps) {
                       item.status === 'SUCCESS'
                         ? 'bg-success/10 border-success/20 text-success'
                         : item.status === 'ERROR'
-                        ? 'bg-destructive/10 border-destructive/20 text-destructive'
-                        : 'bg-surface border-border text-muted-foreground'
+                          ? 'bg-destructive/10 border-destructive/20 text-destructive'
+                          : 'bg-surface border-border text-muted-foreground'
                     )}
                   >
                     {item.status === 'SUCCESS' && <CheckCircle2 className="h-5 w-5" />}
@@ -259,7 +259,7 @@ export function StepUpload({ jobId, onProcess }: StepUploadProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => retryUpload(item.id)}
-                        className="h-8 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-surface rounded-lg"
+                        className="h-9 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-surface rounded-lg"
                       >
                         <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
                       </Button>
@@ -267,7 +267,7 @@ export function StepUpload({ jobId, onProcess }: StepUploadProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeUpload(item.id)}
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/20 rounded-lg transition-colors"
+                        className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/20 rounded-lg transition-colors"
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -286,7 +286,7 @@ export function StepUpload({ jobId, onProcess }: StepUploadProps) {
           size="lg"
           onClick={handleProcess}
           disabled={!allSuccess || hasErrors || isUploading || isProcessing}
-          className="min-w-[220px] h-12 text-md font-medium bg-primary hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 rounded-lg"
+          className="w-full sm:w-auto sm:min-w-[220px] h-12 text-md font-medium bg-primary hover:bg-primary-hover shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 rounded-lg"
         >
           {isProcessing ? (
             <>

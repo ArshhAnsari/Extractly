@@ -24,7 +24,7 @@ export function StepJobName({ onNext, defaultName = '' }: StepJobNameProps) {
   };
 
   return (
-    <div className="space-y-8 panel rounded-xl p-6 sm:p-10 mt-6">
+    <div className="space-y-6 sm:space-y-8 panel rounded-xl p-3.5 sm:p-6 md:p-8 mt-4 sm:mt-6">
       <div>
         <h2 className="text-3xl font-heading font-bold mb-3 tracking-tight text-foreground">
           Name Your Job
@@ -62,7 +62,7 @@ export function StepJobName({ onNext, defaultName = '' }: StepJobNameProps) {
           <Button
             type="submit"
             size="lg"
-            className="h-12 px-8 text-md font-medium bg-primary hover:bg-primary-hover shadow-lg shadow-primary/25 hover:-translate-y-0.5 active:translate-y-0 transition-all group rounded-lg"
+            className="w-full sm:w-auto h-12 px-8 text-md font-medium bg-primary hover:bg-primary-hover shadow-lg shadow-primary/25 hover:-translate-y-0.5 active:translate-y-0 transition-all group rounded-lg"
           >
             Continue{' '}
             <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />

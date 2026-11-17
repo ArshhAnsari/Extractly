@@ -12,6 +12,7 @@ import { loginSchema, registerSchema } from '@/lib/validators/jobSchemas';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useUiStore } from '@/lib/stores/uiStore';
 import { authApi } from '@/lib/api/auth';
+import { cn } from "@/lib/utils";
 import { Loader2, ArrowRight } from 'lucide-react';
 import { JobSetupWizard } from '../wizard/JobSetupWizard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -95,7 +96,10 @@ export function AuthModal() {
 
   return (
     <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-background/80 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl gap-0">
+      <DialogContent className={cn(
+        "p-0 bg-surface backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl gap-0",
+        modalMode === 'wizard' ? "sm:max-w-2xl lg:max-w-3xl" : "sm:max-w-[500px]"
+      )}>
         <DialogTitle className="sr-only">Authentication or Job Setup</DialogTitle>
         <DialogDescription className="sr-only">Authenticate to continue or setup your extraction job.</DialogDescription>
 
